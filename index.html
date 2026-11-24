@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f8f9">
+  <meta name="description" content="Codifique arquivos em Base64, hexadecimal ou binário e recupere-os diretamente no navegador.">
+  <title>ByteTexto — Arquivos em texto</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="codec.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div class="site-shell">
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="ByteTexto — início">
+        <span class="brand-mark" aria-hidden="true">{ }</span>
+        <span>ByteTexto</span>
+      </a>
+      <nav class="tabs" aria-label="Modo de operação">
+        <button type="button" class="tab is-active" id="encodeTab" aria-controls="encodePanel" aria-selected="true">Codificar</button>
+        <button type="button" class="tab" id="decodeTab" aria-controls="decodePanel" aria-selected="false">Decodificar</button>
+      </nav>
+    </header>
+
+    <main class="content">
+      <section class="intro">
+        <p class="eyebrow">CONVERSOR DE ARQUIVOS</p>
+        <h1 id="pageTitle">Transforme um arquivo em texto.</h1>
+        <p id="pageDescription">Escolha um arquivo, selecione o formato e copie o texto gerado. Tudo acontece no seu navegador.</p>
+      </section>
+
+      <section class="panel" id="encodePanel" aria-labelledby="encodeHeading">
+        <div class="section-heading">
+          <span class="step-number">01</span>
+          <div>
+            <h2 id="encodeHeading">Selecionar arquivo</h2>
+            <p>Arraste um arquivo ou procure no seu dispositivo.</p>
+          </div>
+        </div>
+
+        <input class="file-input" type="file" id="fileInput" aria-label="Escolher arquivo para codificar">
+        <label class="drop-zone" for="fileInput" id="dropZone" tabindex="0">
+          <span class="upload-symbol" aria-hidden="true">↑</span>
+          <strong>Arraste seu arquivo para cá</strong>
+          <span class="drop-subtitle">ou</span>
+          <span class="button button-secondary choose-label">Escolher arquivo</span>
+        </label>
+
+        <div class="file-details" id="fileDetails" hidden>
+          <span class="file-dot" aria-hidden="true"></span>
+          <div class="file-details-text">
+            <strong id="selectedFileName"></strong>
+            <span id="selectedFileSize"></span>
+          </div>
+          <button type="button" id="replaceFileButton" class="text-button">Trocar</button>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="section-heading">
+          <span class="step-number">02</span>
+          <div>
+            <h2>Escolher formato</h2>
+            <p>Defina como os bytes serão representados.</p>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field">
+            <label for="encodeFormat">Codificação</label>
+            <select id="encodeFormat">
+              <option value="base64">Base64 — mais compacto</option>
+              <option value="hex">Hexadecimal — 0 a 9, A a F</option>
+              <option value="binary">Binário — 0 e 1</option>
+            </select>
+          </div>
+        </div>
+        <label class="check-row">
+          <input type="checkbox" id="keepMetadata" checked>
+          <span>
+            <strong>Preservar nome e extensão</strong>
+            <small>Adiciona uma linha de identificação que este site reconhece ao decodificar.</small>
+          </span>
+        </label>
+
+        <div class="divider"></div>
+
+        <div class="section-heading result-heading">
+          <span class="step-number">03</span>
+          <div>
+            <h2>Texto codificado</h2>
+            <p>Copie o conteúdo e guarde onde quiser.</p>
+          </div>
+        </div>
+        <div class="output-area">
+          <textarea id="encodedOutput" aria-label="Texto codificado" placeholder="Seu texto aparecerá aqui depois de selecionar um arquivo." readonly spellcheck="false"></textarea>
+          <div class="output-toolbar">
+            <span id="encodeStats" class="small-note">Nenhum arquivo selecionado</span>
+            <button type="button" id="copyButton" class="button button-primary" disabled>Copiar texto</button>
+          </div>
+        </div>
+        <p class="status-message" id="encodeStatus" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="panel" id="decodePanel" aria-labelledby="decodeHeading" hidden>
+        <div class="section-heading">
+          <span class="step-number">01</span>
+          <div>
+            <h2 id="decodeHeading">Colar texto codificado</h2>
+            <p>Cole o conteúdo completo que você guardou.</p>
+          </div>
+        </div>
+        <textarea id="decodeInput" class="paste-area" placeholder="Cole aqui o conteúdo em Base64, hexadecimal ou binário..." aria-label="Conteúdo para decodificar" spellcheck="false"></textarea>
+        <div class="field-group">
+          <div class="field">
+            <label for="decodeFormat">Formato do conteúdo</label>
+            <select id="decodeFormat">
+              <option value="base64">Base64</option>
+              <option value="hex">Hexadecimal</option>
+              <option value="binary">Binário</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="decodeName">Nome do arquivo para download</label>
+            <input id="decodeName" type="text" value="arquivo.bin" autocomplete="off" maxlength="255" spellcheck="false">
+          </div>
+        </div>
+        <p class="hint" id="metadataHint">Se o texto tiver a linha de identificação do ByteTexto, o formato e o nome serão reconhecidos automaticamente. Sem ela, informe o nome com a extensão correta.</p>
+
+        <div class="divider"></div>
+
+        <div class="section-heading">
+          <span class="step-number">02</span>
+          <div>
+            <h2>Recuperar arquivo</h2>
+            <p>O arquivo será preparado automaticamente quando o texto for válido.</p>
+          </div>
+        </div>
+        <div class="download-area" id="downloadArea" hidden>
+          <div class="ready-file">
+            <span class="ready-dot" aria-hidden="true"></span>
+            <div>
+              <strong>Arquivo pronto</strong>
+              <span id="decodedStats"></span>
+            </div>
+          </div>
+          <a id="downloadButton" class="button button-primary" href="#" download="arquivo.bin">Baixar arquivo</a>
+        </div>
+        <div class="empty-state" id="decodeEmptyState">O download aparecerá aqui quando você colar um texto válido.</div>
+        <p class="status-message" id="decodeStatus" role="status" aria-live="polite"></p>
+      </section>
+
+      <p class="privacy-note">Seus arquivos são processados localmente. Nada é enviado para um servidor. Arquivos grandes podem exigir bastante memória no navegador.</p>
+    </main>
+
+    <footer class="site-footer">
+      <span>ByteTexto</span>
+      <span>Base64 · Hexadecimal · Binário</span>
+    </footer>
+  </div>
+</body>
+</html>
