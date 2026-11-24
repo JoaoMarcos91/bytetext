@@ -1,54 +1,60 @@
 # ByteTexto
 
-Conversor de arquivos para texto. Funciona totalmente no navegador, sem upload de arquivos e sem bibliotecas externas.
+Conversor de arquivos para Base64, hexadecimal ou binário, com compactação opcional por GZIP. Funciona diretamente no navegador, sem upload de arquivos, servidor de processamento ou dependências externas.
 
-## Formatos
+## Funcionalidades
 
-- **Base64:** texto cerca de 33% maior do que o arquivo original.
-- **Hexadecimal:** dois caracteres por byte (aproximadamente o dobro do tamanho).
-- **Binário:** oito caracteres `0` ou `1` por byte (aproximadamente oito vezes o tamanho).
+- Escolher ou arrastar um arquivo para codificar.
+- Converter para Base64, hexadecimal ou binário.
+- Compactar automaticamente com GZIP antes de converter, **somente quando isso diminui o número final de caracteres**.
+- Mostrar a economia de caracteres obtida.
+- Copiar todo o texto codificado.
+- Colar o texto para recuperar os bytes originais e baixar o arquivo.
+- Reconhecer e descompactar GZIP automaticamente quando o texto contiver a identificação do ByteTexto.
+- Preservar opcionalmente nome, extensão e tipo do arquivo.
 
 ## Como usar
 
 ### Codificar
 
-1. Abra o site e selecione **Codificar**.
-2. Arraste um arquivo ou clique em **Escolher arquivo**.
-3. Selecione Base64, hexadecimal ou binário.
-4. Use **Copiar texto** e cole o resultado onde quiser.
+1. Abra a aba **Codificar** e selecione um arquivo.
+2. Escolha o formato desejado.
+3. Deixe **Compactar automaticamente (GZIP)** ativado para tentar reduzir o texto.
+4. Deixe **Preservar nome e extensão** ativado se quiser recuperá-los automaticamente.
+5. Clique em **Copiar texto** e salve o conteúdo em um lugar que preserve os caracteres.
 
-A opção **Preservar nome e extensão** insere uma linha inicial de identificação. É recomendável deixá-la ativada se o texto será reconstruído neste site. Desative-a caso queira apenas Base64, hexadecimal ou binário sem cabeçalho.
+A opção de compactação não força um arquivo maior: caso o GZIP não ofereça economia, o ByteTexto mantém os dados originais sem compactação. Arquivos JPEG, MP4, PDF e ZIP frequentemente já usam técnicas de compressão, por isso nem sempre ficam menores.
 
 ### Decodificar
 
-1. Selecione **Decodificar** e cole o texto.
-2. Se houver cabeçalho, o formato e o nome do arquivo são identificados automaticamente.
-3. Sem cabeçalho, selecione o formato correto e informe o nome do arquivo com a extensão desejada.
+1. Abra a aba **Decodificar** e cole o conteúdo completo.
+2. O formato, a compactação e o nome são identificados automaticamente quando existe o cabeçalho.
+3. Se não existir cabeçalho, selecione o formato correto e informe o nome do arquivo.
 4. Clique em **Baixar arquivo**.
 
-Os bytes são preservados. Sem cabeçalho, o nome original e o tipo MIME não podem ser deduzidos apenas a partir do conteúdo codificado.
+**Compatibilidade:** o site continua lendo os conteúdos da versão anterior (`BYTETEXTO/1`) e formatos puros, sem cabeçalho. Quando um arquivo é compactado, o ByteTexto inclui o pequeno cabeçalho `BYTETEXTO/2` mesmo que a opção de preservar o nome esteja desativada, porque essa informação é indispensável para a descompactação automática. Não remova nem altere essa linha.
 
-## Publicar no Vercel
+## Publicar no GitHub e Vercel
 
-1. Crie um repositório no GitHub e envie os arquivos da pasta deste projeto para a raiz do repositório.
-2. No Vercel, escolha **Add New → Project** e importe o repositório.
-3. Se necessário, selecione **Framework Preset: Other**.
-4. Não é necessário instalar dependências, definir comando de build ou configurar variáveis de ambiente.
-5. Publique o projeto.
+1. Crie ou abra um repositório no GitHub.
+2. Em **Add file → Upload files**, envie os arquivos de dentro da pasta `byte-texto` para a raiz do repositório; salve com **Commit changes**.
+3. No Vercel, importe o repositório em **New Project**.
+4. Se necessário, selecione **Framework Preset: Other** e faça o deploy. Nenhum comando de build ou variável de ambiente é necessário.
 
-Também pode ser aberto diretamente pelo arquivo `index.html` no computador.
+O projeto também pode ser aberto localmente a partir de `index.html`.
 
 ## Estrutura
 
-- `index.html` — estrutura das telas
-- `styles.css` — tema claro e layout responsivo
-- `codec.js` — conversão de bytes e cabeçalho opcional
-- `app.js` — interação com os arquivos, copiar e baixar
+- `index.html` — interface.
+- `styles.css` — estilos.
+- `codec.js` — conversão, cabeçalhos e GZIP.
+- `app.js` — manipulação dos arquivos, cópia e download.
 
 ## Observações
 
-- Os dados não são enviados para um servidor pelo projeto.
-- Não há armazenamento automático de conteúdo no site; copie o texto para o local desejado.
-- Arquivos grandes podem ocupar muita memória no navegador, principalmente na codificação binária.
-- Ao usar uma área de texto de outro site, verifique os limites, as regras e se o conteúdo permanece intacto após ser salvo.
-- A codificação não é criptografia: quem tiver acesso ao texto poderá recuperar o arquivo.
+- Os dados são processados localmente, sem envio a servidores pelo ByteTexto.
+- GZIP requer um navegador com `CompressionStream` e `DecompressionStream`. Em navegadores sem suporte, o site converte sem compactar.
+- Base64 aumenta o tamanho dos bytes em cerca de 33% antes de considerar o efeito da compactação e do cabeçalho; hexadecimal duplica e binário textual multiplica por oito.
+- A compactação não substitui o limite de caracteres imposto por outro site. Verifique se o texto foi salvo e recuperado integralmente.
+- A codificação e a compactação não são criptografia: qualquer pessoa com o texto pode reconstruir o arquivo.
+- Arquivos muito grandes podem ocupar bastante memória durante a conversão e a descompactação.

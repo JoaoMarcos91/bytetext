@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f7f8f9">
-  <meta name="description" content="Codifique arquivos em Base64, hexadecimal ou binário e recupere-os diretamente no navegador.">
+  <meta name="description" content="Compacte e codifique arquivos em Base64, hexadecimal ou binário e recupere-os diretamente no navegador.">
   <title>ByteTexto — Arquivos em texto</title>
   <link rel="stylesheet" href="styles.css">
   <script src="codec.js" defer></script>
@@ -76,6 +76,13 @@
           </div>
         </div>
         <label class="check-row">
+          <input type="checkbox" id="compressFile" checked>
+          <span>
+            <strong>Compactar automaticamente (GZIP)</strong>
+            <small>Reduz o tamanho antes da codificação. A compactação só será usada quando economizar caracteres.</small>
+          </span>
+        </label>
+        <label class="check-row">
           <input type="checkbox" id="keepMetadata" checked>
           <span>
             <strong>Preservar nome e extensão</strong>
@@ -98,6 +105,10 @@
             <span id="encodeStats" class="small-note">Nenhum arquivo selecionado</span>
             <button type="button" id="copyButton" class="button button-primary" disabled>Copiar texto</button>
           </div>
+        </div>
+        <div class="compression-result" id="compressionResult" hidden aria-live="polite">
+          <strong id="compressionTitle"></strong>
+          <span id="compressionDetails"></span>
         </div>
         <p class="status-message" id="encodeStatus" role="status" aria-live="polite"></p>
       </section>
@@ -125,7 +136,7 @@
             <input id="decodeName" type="text" value="arquivo.bin" autocomplete="off" maxlength="255" spellcheck="false">
           </div>
         </div>
-        <p class="hint" id="metadataHint">Se o texto tiver a linha de identificação do ByteTexto, o formato e o nome serão reconhecidos automaticamente. Sem ela, informe o nome com a extensão correta.</p>
+        <p class="hint" id="metadataHint">Com a linha de identificação, o formato, a compactação e o nome serão reconhecidos automaticamente. Sem ela, informe o formato e o nome.</p>
 
         <div class="divider"></div>
 
@@ -150,7 +161,7 @@
         <p class="status-message" id="decodeStatus" role="status" aria-live="polite"></p>
       </section>
 
-      <p class="privacy-note">Seus arquivos são processados localmente. Nada é enviado para um servidor. Arquivos grandes podem exigir bastante memória no navegador.</p>
+      <p class="privacy-note">Seus arquivos são processados localmente. Nada é enviado para um servidor. A compactação usa GZIP, disponível em navegadores modernos. Arquivos grandes podem exigir bastante memória.</p>
     </main>
 
     <footer class="site-footer">

@@ -4,7 +4,8 @@
   const formats = ["base64", "hex", "binary"];
   const hexTable = Array.from({ length: 256 }, (_, value) => value.toString(16).padStart(2, "0").toUpperCase());
   const binaryTable = Array.from({ length: 256 }, (_, value) => value.toString(2).padStart(8, "0"));
-  const prefix = "BYTETEXTO/1|";
+  const legacyPrefix = "BYTETEXTO/1|";
+  const compressedPrefix = "BYTETEXTO/2|";
 
   function encode(bytes, format) {
     if (!formats.includes(format)) throw new Error("Formato de codificação desconhecido.");
@@ -67,29 +68,64 @@
     return bytes;
   }
 
-  function pack(content, format, name, type) {
+  async function compress(bytes) {
+    if (typeof CompressionStream === "undefined") {
+      throw new Error("Seu navegador não oferece suporte à compactação GZIP.");
+    }
+    const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream("gzip"));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+
+  async function decompress(bytes) {
+    if (typeof DecompressionStream === "undefined") {
+      throw new Error("Seu navegador não oferece suporte à descompactação GZIP.");
+    }
+    try {
+      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+      return new Uint8Array(await new Response(stream).arrayBuffer());
+    } catch {
+      throw new Error("Não foi possível descompactar o arquivo. Verifique se o texto foi copiado inteiro e sem alterações.");
+    }
+  }
+
+  function pack(content, format, name, type, compression = "none") {
     if (!formats.includes(format)) throw new Error("Formato de codificação desconhecido.");
-    const header = ["BYTETEXTO/1", format, encodeURIComponent(name), encodeURIComponent(type || "application/octet-stream")].join("|");
-    return header + "\n" + content;
+    if (compression !== "none" && compression !== "gzip") throw new Error("Compactação desconhecida.");
+    const fields = compression === "gzip"
+      ? ["BYTETEXTO/2", format, "gzip", encodeURIComponent(name || ""), encodeURIComponent(type || "")]
+      : ["BYTETEXTO/1", format, encodeURIComponent(name || ""), encodeURIComponent(type || "")];
+    return fields.join("|") + "\n" + content;
   }
 
   function unpack(text) {
-    if (!text.startsWith(prefix)) return null;
+    const compressed = text.startsWith(compressedPrefix);
+    const legacy = text.startsWith(legacyPrefix);
+    if (!compressed && !legacy) return null;
     const newline = text.indexOf("\n");
     if (newline < 0) throw new Error("Cabeçalho incompleto: falta o conteúdo do arquivo.");
     const header = text.slice(0, newline).replace(/\r$/, "");
     const fields = header.split("|");
-    if (fields.length !== 4 || fields[0] !== "BYTETEXTO/1" || !formats.includes(fields[1])) {
+    if (compressed) {
+      if (fields.length !== 5 || fields[0] !== "BYTETEXTO/2" ||
+          !formats.includes(fields[1]) || fields[2] !== "gzip") {
+        throw new Error("Cabeçalho de compactação inválido.");
+      }
+    } else if (fields.length !== 4 || fields[0] !== "BYTETEXTO/1" || !formats.includes(fields[1])) {
       throw new Error("Cabeçalho do ByteTexto inválido.");
     }
+    const nameIndex = compressed ? 3 : 2;
     let name, type;
     try {
-      name = decodeURIComponent(fields[2]);
-      type = decodeURIComponent(fields[3]);
+      name = decodeURIComponent(fields[nameIndex]);
+      type = decodeURIComponent(fields[nameIndex + 1]);
     } catch {
       throw new Error("Cabeçalho inválido: nome ou tipo danificado.");
     }
-    return { format: fields[1], name: name || "arquivo.bin", type: type || "application/octet-stream", content: text.slice(newline + 1) };
+    return {
+      format: fields[1], compression: compressed ? "gzip" : "none",
+      name: name || "arquivo.bin", type: type || "application/octet-stream",
+      content: text.slice(newline + 1), hasName: Boolean(name)
+    };
   }
 
   function safeName(name) {
@@ -110,7 +146,7 @@
     return bytes * (format === "hex" ? 2 : 8);
   }
 
-  const api = { encode, decode, pack, unpack, safeName, formatBytes, estimatedSize };
+  const api = { encode, decode, pack, unpack, compress, decompress, safeName, formatBytes, estimatedSize };
   root.ByteTextoCodec = api;
   if (typeof module === "object" && module.exports) module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

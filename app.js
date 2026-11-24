@@ -12,6 +12,8 @@
   const fileDetails = $("fileDetails");
   const encodeFormat = $("encodeFormat");
   const keepMetadata = $("keepMetadata");
+  const compressFile = $("compressFile");
+  const compressionResult = $("compressionResult");
   const output = $("encodedOutput");
   const copyButton = $("copyButton");
   const decodeInput = $("decodeInput");
@@ -24,6 +26,7 @@
   let selectedFile = null;
   let encodingRun = 0;
   let decodeTimer = null;
+  let decodingRun = 0;
   let fileUrl = null;
   let nameFromHeader = false;
   let copyResetTimer = null;
@@ -92,39 +95,80 @@
     const run = ++encodingRun;
     output.value = "";
     copyButton.disabled = true;
+    compressionResult.hidden = true;
     setStatus("encodeStatus", "");
     if (!selectedFile) return;
+
     const format = encodeFormat.value;
     const expected = codec.estimatedSize(selectedFile.size, format);
     $("encodeStats").textContent = "Codificando...";
     if (expected > 20 * 1024 * 1024) {
-      setStatus("encodeStatus", "O texto gerado será grande e poderá consumir bastante memória. Arquivos menores costumam funcionar melhor.");
+      setStatus("encodeStatus", "Arquivos grandes podem consumir bastante memória. O resultado pode demorar a aparecer.");
     }
-    // Permite que o navegador atualize a interface antes da conversão.
     await new Promise((resolve) => setTimeout(resolve, 20));
+
     try {
-      const buffer = await selectedFile.arrayBuffer();
+      const source = new Uint8Array(await selectedFile.arrayBuffer());
       if (run !== encodingRun) return;
-      const content = codec.encode(new Uint8Array(buffer), format);
+      const headerName = keepMetadata.checked ? selectedFile.name : "";
+      const headerType = keepMetadata.checked ? selectedFile.type : "";
+      const rawSize = codec.estimatedSize(source.length, format) +
+        (keepMetadata.checked ? codec.pack("", format, headerName, headerType).length : 0);
+      let payload = source;
+      let usedCompression = false;
+      let unsupported = false;
+
+      if (compressFile.checked) {
+        if (typeof CompressionStream === "undefined" || typeof DecompressionStream === "undefined") {
+          unsupported = true;
+        } else {
+          const compressed = await codec.compress(source);
+          if (run !== encodingRun) return;
+          const compressedSize = codec.estimatedSize(compressed.length, format) +
+            codec.pack("", format, headerName, headerType, "gzip").length;
+          if (compressedSize < rawSize) {
+            payload = compressed;
+            usedCompression = true;
+          }
+        }
+      }
+
+      const content = codec.encode(payload, format);
       if (run !== encodingRun) return;
-      const text = keepMetadata.checked
-        ? codec.pack(content, format, selectedFile.name, selectedFile.type)
+      const text = (keepMetadata.checked || usedCompression)
+        ? codec.pack(content, format, headerName, headerType, usedCompression ? "gzip" : "none")
         : content;
       output.value = text;
       copyButton.disabled = false;
-      $("encodeStats").textContent = `${text.length.toLocaleString("pt-BR")} caracteres · ${codec.formatBytes(selectedFile.size)} originais`;
-      if (selectedFile.size === 0) {
-        setStatus("encodeStatus", "O arquivo está vazio. O texto terá somente o cabeçalho, se essa opção estiver ativada.");
+      $("encodeStats").textContent = `${text.length.toLocaleString("pt-BR")} caracteres · ${codec.formatBytes(source.length)} originais`;
+
+      if (compressFile.checked) {
+        compressionResult.hidden = false;
+        if (unsupported) {
+          $("compressionTitle").textContent = "GZIP indisponível neste navegador";
+          $("compressionDetails").textContent = "O arquivo foi codificado sem compactação. Use um navegador atualizado para ativar o recurso.";
+        } else if (usedCompression) {
+          const percent = ((1 - text.length / rawSize) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+          $("compressionTitle").textContent = `${percent}% menos caracteres`;
+          $("compressionDetails").textContent = `Sem compactação: ${rawSize.toLocaleString("pt-BR")} · Com GZIP: ${text.length.toLocaleString("pt-BR")} caracteres. Os dados serão descompactados automaticamente.`;
+        } else {
+          $("compressionTitle").textContent = "Compactação não necessária";
+          $("compressionDetails").textContent = "GZIP não reduziria o texto final. Foi mantida a versão menor, sem compactação.";
+        }
+      }
+      if (source.length === 0) {
+        setStatus("encodeStatus", "O arquivo está vazio. Apenas a identificação será exibida, se ativada.");
       }
     } catch (error) {
       if (run !== encodingRun) return;
       $("encodeStats").textContent = "Falha na conversão";
-      setStatus("encodeStatus", "Não foi possível ler ou codificar esse arquivo. " + error.message, "error");
+      setStatus("encodeStatus", "Não foi possível codificar esse arquivo. " + error.message, "error");
     }
   }
 
   encodeFormat.addEventListener("change", encodeSelectedFile);
   keepMetadata.addEventListener("change", encodeSelectedFile);
+  compressFile.addEventListener("change", encodeSelectedFile);
 
   async function copyText() {
     if (copyButton.disabled) return;
@@ -175,12 +219,13 @@
   decodeName.addEventListener("input", updateDownloadName);
 
   function scheduleDecode() {
+    ++decodingRun;
     clearTimeout(decodeTimer);
     clearDownload();
     setStatus("decodeStatus", "");
 
     if (!decodeInput.value.trim()) {
-      $("metadataHint").textContent = "Se o texto tiver a linha de identificação do ByteTexto, o formato e o nome serão reconhecidos automaticamente. Sem ela, informe o nome com a extensão correta.";
+      $("metadataHint").textContent = "Com a linha de identificação, o formato, a compactação e o nome serão reconhecidos automaticamente. Sem ela, informe o formato e o nome.";
       if (nameFromHeader) decodeName.value = "arquivo.bin";
       nameFromHeader = false;
       return;
@@ -192,7 +237,7 @@
         decodeFormat.value = metadata.format;
         decodeName.value = metadata.name;
         nameFromHeader = true;
-        $("metadataHint").textContent = "Cabeçalho identificado: formato e nome preenchidos automaticamente.";
+        $("metadataHint").textContent = "Identificação reconhecida: formato e compactação detectados automaticamente.";
       } else {
         if (nameFromHeader) decodeName.value = "arquivo.bin";
         nameFromHeader = false;
@@ -203,10 +248,11 @@
       return;
     }
     setStatus("decodeStatus", "Lendo conteúdo...");
-    decodeTimer = setTimeout(decodeContent, 280);
+    decodeTimer = setTimeout(() => { void decodeContent(); }, 280);
   }
 
-  function decodeContent() {
+  async function decodeContent() {
+    const run = decodingRun;
     clearDownload();
     const text = decodeInput.value.trimStart();
     if (!text.trim()) { setStatus("decodeStatus", ""); return; }
@@ -214,17 +260,25 @@
       const metadata = codec.unpack(text);
       const format = metadata ? metadata.format : decodeFormat.value;
       const payload = metadata ? metadata.content : text;
-      const bytes = codec.decode(payload, format, Boolean(metadata));
+      let bytes = codec.decode(payload, format, Boolean(metadata));
+      const compressed = metadata && metadata.compression === "gzip";
+      if (compressed) {
+        setStatus("decodeStatus", "Descompactando o arquivo...");
+        bytes = await codec.decompress(bytes);
+        if (run !== decodingRun) return;
+      }
       const type = metadata ? metadata.type : "application/octet-stream";
       const blob = new Blob([bytes], { type });
+      if (run !== decodingRun) return;
       fileUrl = URL.createObjectURL(blob);
       downloadButton.href = fileUrl;
-      updateDownloadName();
-      $("decodedStats").textContent = `${currentFileName()} · ${codec.formatBytes(bytes.length)}`;
+      downloadButton.download = currentFileName();
+      $("decodedStats").textContent = `${currentFileName()} · ${codec.formatBytes(bytes.length)}${compressed ? " · GZIP descompactado" : ""}`;
       downloadArea.hidden = false;
       decodeEmptyState.hidden = true;
       setStatus("decodeStatus", "Arquivo reconstruído com sucesso.", "success");
     } catch (error) {
+      if (run !== decodingRun) return;
       setStatus("decodeStatus", error.message, "error");
     }
   }
